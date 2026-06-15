@@ -183,7 +183,7 @@ export default async function MarketPage({
       : baseQuery
   )
 
-  const posts = (postsData ?? []) as Post[]
+  const posts = (postsData ?? []) as unknown as Post[]
   const activeCat = categoryFilter ?? '전체'
 
   return (
