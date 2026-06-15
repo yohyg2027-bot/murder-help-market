@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import CommentSection from './CommentSection'
+import PostActions from './PostActions'
 
 const CONDITION_LABEL: Record<string, string> = {
   new: '새상품',
@@ -74,21 +75,24 @@ export default async function PostDetailPage({
 
   const typeConfig = POST_TYPE_CONFIG[post.post_type] ?? { label: post.post_type, color: '#888880', tabKey: 'sell' }
   const canNegotiate = post.post_type === 'sell' || post.post_type === 'buy'
+  const isAuthor = user?.id === post.seller?.id
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      {/* 뒤로가기 */}
-      <Link
-        href={`/market?tab=${typeConfig.tabKey}`}
-        style={{
-          color: '#555550', fontSize: '0.78rem',
-          textDecoration: 'none', fontFamily: 'monospace',
-          letterSpacing: '0.1em', display: 'inline-block',
-          marginBottom: '1.5rem',
-        }}
-      >
-        ← 목록으로
-      </Link>
+      {/* 뒤로가기 + 수정/삭제 버튼 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <Link
+          href={`/market?tab=${typeConfig.tabKey}`}
+          style={{
+            color: '#555550', fontSize: '0.78rem',
+            textDecoration: 'none', fontFamily: 'monospace',
+            letterSpacing: '0.1em',
+          }}
+        >
+          ← 목록으로
+        </Link>
+        {isAuthor && <PostActions postId={id} tabKey={typeConfig.tabKey} />}
+      </div>
 
       {/* 게시글 본문 */}
       <article style={{
