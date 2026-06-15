@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #1a1a1a;
+  --border: #2a2a2a;
+  --border-red: #5c0000;
+  --text-primary: #e8e0d0;
+  --text-muted: #888880;
+  --red-dark: #8b0000;
+  --red-mid: #a00000;
+  --red-bright: #cc0000;
+  --red-accent: #dc143c;
+  --gold: #b8860b;
+  --gold-light: #d4a017;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--red-dark); border-radius: 3px; }
+
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset;
+  -webkit-text-fill-color: #e8e0d0;
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.8; }
+  94% { opacity: 1; }
+  96% { opacity: 0.7; }
+  97% { opacity: 1; }
+}
+
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 10px rgba(220, 20, 60, 0.2); }
+  50% { box-shadow: 0 0 30px rgba(220, 20, 60, 0.5); }
+}
+
+@keyframes drip {
+  0% { transform: scaleY(0); transform-origin: top; }
+  100% { transform: scaleY(1); transform-origin: top; }
+}
+
+.flicker { animation: flicker 8s infinite; }
+.pulse-red { animation: pulse-red 3s ease-in-out infinite; }
+
+.product-card { transition: border-color 0.2s; }
+.product-card:hover { border-color: #5c0000 !important; }
