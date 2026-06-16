@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import SalesRankingSidebar from './SalesRankingSidebar'
 
 const CONDITION_LABEL: Record<string, string> = {
   new: '새상품',
@@ -187,7 +188,7 @@ export default async function MarketPage({
   const activeCat = categoryFilter ?? '전체'
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '2rem 1rem' }}>
       {/* 환영 메시지 */}
       <div style={{ marginBottom: '2rem' }}>
         <p style={{
@@ -203,114 +204,123 @@ export default async function MarketPage({
         </h2>
       </div>
 
-      {/* 탭 네비게이션 */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #2a2a2a', marginBottom: '1.5rem' }}>
-        {(Object.entries(TAB_CONFIG) as [TabType, typeof TAB_CONFIG[TabType]][]).map(([key, val]) => {
-          const isActive = key === tab
-          return (
+      {/* 2컬럼 레이아웃: 메인 + 사이드바 */}
+      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+        {/* 메인 콘텐츠 */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* 탭 네비게이션 */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #2a2a2a', marginBottom: '1.5rem' }}>
+            {(Object.entries(TAB_CONFIG) as [TabType, typeof TAB_CONFIG[TabType]][]).map(([key, val]) => {
+              const isActive = key === tab
+              return (
+                <Link
+                  key={key}
+                  href={`/market?tab=${key}`}
+                  style={{
+                    padding: '0.8rem 1.5rem',
+                    fontSize: '0.9rem',
+                    fontWeight: isActive ? 700 : 400,
+                    color: isActive ? val.accent : '#555550',
+                    borderBottom: isActive ? `2px solid ${val.accent}` : '2px solid transparent',
+                    textDecoration: 'none',
+                    transition: 'all 0.15s',
+                    marginBottom: '-1px',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  {val.label}
+                </Link>
+              )
+            })}
+          </div>
+
+          {/* 카테고리 필터 + 글쓰기 버튼 */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            alignItems: 'flex-start', marginBottom: '1.5rem', gap: '1rem',
+          }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', flex: 1 }}>
+              {cfg.categories.map((cat) => {
+                const isActiveCat = cat === activeCat
+                return (
+                  <Link
+                    key={cat}
+                    href={
+                      cat === '전체'
+                        ? `/market?tab=${tab}`
+                        : `/market?tab=${tab}&cat=${encodeURIComponent(cat)}`
+                    }
+                    style={{
+                      padding: '0.25rem 0.65rem',
+                      fontSize: '0.7rem', fontFamily: 'monospace',
+                      letterSpacing: '0.05em', textDecoration: 'none',
+                      background: isActiveCat ? `${cfg.accent}22` : 'transparent',
+                      color: isActiveCat ? cfg.accent : '#3a3a3a',
+                      border: `1px solid ${isActiveCat ? cfg.accent + '66' : '#2a2a2a'}`,
+                      transition: 'all 0.15s', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {cat}
+                  </Link>
+                )
+              })}
+            </div>
+
             <Link
-              key={key}
-              href={`/market?tab=${key}`}
+              href={cfg.writeHref}
               style={{
-                padding: '0.8rem 1.5rem',
-                fontSize: '0.9rem',
-                fontWeight: isActive ? 700 : 400,
-                color: isActive ? val.accent : '#555550',
-                borderBottom: isActive ? `2px solid ${val.accent}` : '2px solid transparent',
-                textDecoration: 'none',
-                transition: 'all 0.15s',
-                marginBottom: '-1px',
-                letterSpacing: '0.05em',
+                flexShrink: 0, fontSize: '0.8rem',
+                color: cfg.accent, border: `1px solid ${cfg.accent}66`,
+                padding: '0.45rem 1rem', letterSpacing: '0.1em',
+                textDecoration: 'none', whiteSpace: 'nowrap',
+                background: `${cfg.accent}11`,
               }}
             >
-              {val.label}
+              {cfg.writeLabel}
             </Link>
-          )
-        })}
-      </div>
+          </div>
 
-      {/* 카테고리 필터 + 글쓰기 버튼 */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between',
-        alignItems: 'flex-start', marginBottom: '1.5rem', gap: '1rem',
-      }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', flex: 1 }}>
-          {cfg.categories.map((cat) => {
-            const isActiveCat = cat === activeCat
-            return (
-              <Link
-                key={cat}
-                href={
-                  cat === '전체'
-                    ? `/market?tab=${tab}`
-                    : `/market?tab=${tab}&cat=${encodeURIComponent(cat)}`
-                }
-                style={{
-                  padding: '0.25rem 0.65rem',
-                  fontSize: '0.7rem', fontFamily: 'monospace',
-                  letterSpacing: '0.05em', textDecoration: 'none',
-                  background: isActiveCat ? `${cfg.accent}22` : 'transparent',
-                  color: isActiveCat ? cfg.accent : '#3a3a3a',
-                  border: `1px solid ${isActiveCat ? cfg.accent + '66' : '#2a2a2a'}`,
-                  transition: 'all 0.15s', whiteSpace: 'nowrap',
-                }}
-              >
-                {cat}
+          {/* 글 목록 */}
+          {posts.length === 0 ? (
+            <div style={{
+              textAlign: 'center', padding: '4rem 2rem',
+              border: '1px solid #2a2a2a', color: '#3a3a3a',
+              fontFamily: 'monospace', fontSize: '0.82rem', letterSpacing: '0.1em',
+            }}>
+              <p style={{ marginBottom: '1rem' }}>{cfg.emptyMsg}</p>
+              <Link href={cfg.writeHref} style={{ color: cfg.accent, textDecoration: 'none', fontSize: '0.78rem' }}>
+                {cfg.writeLabel}
               </Link>
-            )
-          })}
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gap: '0.75rem',
+            }}>
+              {posts.map((p) => (
+                <PostCard key={p.id} post={p} tab={tab} />
+              ))}
+            </div>
+          )}
+
+          {/* 푸터 */}
+          <div style={{
+            height: '1px',
+            background: 'linear-gradient(90deg, transparent, #2a2a2a, transparent)',
+            margin: '3rem 0 1.5rem',
+          }} />
+          <p style={{
+            textAlign: 'center', color: '#2a2a2a', fontSize: '0.65rem',
+            letterSpacing: '0.2em', fontFamily: 'monospace',
+          }}>
+            ✦ 비밀은 지켜드립니다 ✦
+          </p>
         </div>
 
-        <Link
-          href={cfg.writeHref}
-          style={{
-            flexShrink: 0, fontSize: '0.8rem',
-            color: cfg.accent, border: `1px solid ${cfg.accent}66`,
-            padding: '0.45rem 1rem', letterSpacing: '0.1em',
-            textDecoration: 'none', whiteSpace: 'nowrap',
-            background: `${cfg.accent}11`,
-          }}
-        >
-          {cfg.writeLabel}
-        </Link>
+        {/* 우측 실시간 순위 사이드바 */}
+        <SalesRankingSidebar />
       </div>
-
-      {/* 글 목록 */}
-      {posts.length === 0 ? (
-        <div style={{
-          textAlign: 'center', padding: '4rem 2rem',
-          border: '1px solid #2a2a2a', color: '#3a3a3a',
-          fontFamily: 'monospace', fontSize: '0.82rem', letterSpacing: '0.1em',
-        }}>
-          <p style={{ marginBottom: '1rem' }}>{cfg.emptyMsg}</p>
-          <Link href={cfg.writeHref} style={{ color: cfg.accent, textDecoration: 'none', fontSize: '0.78rem' }}>
-            {cfg.writeLabel}
-          </Link>
-        </div>
-      ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-          gap: '0.75rem',
-        }}>
-          {posts.map((p) => (
-            <PostCard key={p.id} post={p} tab={tab} />
-          ))}
-        </div>
-      )}
-
-      {/* 푸터 */}
-      <div style={{
-        height: '1px',
-        background: 'linear-gradient(90deg, transparent, #2a2a2a, transparent)',
-        margin: '3rem 0 1.5rem',
-      }} />
-      <p style={{
-        textAlign: 'center', color: '#2a2a2a', fontSize: '0.65rem',
-        letterSpacing: '0.2em', fontFamily: 'monospace',
-      }}>
-        ✦ 비밀은 지켜드립니다 ✦
-      </p>
     </div>
   )
 }
