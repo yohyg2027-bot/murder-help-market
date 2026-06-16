@@ -15,7 +15,7 @@ export default async function EditPage({
 
   const { data: postRaw } = await supabase
     .from('products')
-    .select('id, title, category, price, condition, location, description, post_type, status, seller_id')
+    .select('id, title, category, price, condition, location, description, post_type, status, seller_id, images')
     .eq('id', id)
     .single()
 
@@ -32,6 +32,7 @@ export default async function EditPage({
     location: postRaw.location as string | null,
     description: postRaw.description as string | null,
     post_type: postRaw.post_type as string,
+    images: (postRaw.images as string[]) ?? [],
   }
 
   return <EditForm postId={id} initialData={initialData} />

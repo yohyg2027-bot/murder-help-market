@@ -19,6 +19,14 @@ export default function PostActions({ postId, tabKey }: Props) {
 
   const handleDelete = async () => {
     setDeleting(true)
+
+    // 이미지 URL 목록 먼저 가져오기
+    const { data: product } = await supabase
+      .from('products')
+      .select('images')
+      .eq('id', postId)
+      .single()
+
     const { error: deleteError } = await supabase
       .from('products')
       .delete()
@@ -28,6 +36,21 @@ export default function PostActions({ postId, tabKey }: Props) {
       setError('삭제 중 오류가 발생했습니다.')
       setDeleting(false)
       return
+    }
+
+    // Storage에서 이미지 파일도 삭제
+    const images: string[] = product?.images ?? []
+    if (images.length > 0) {
+      const marker = '/storage/v1/object/public/product-images/'
+      const paths = images
+        .map(url => {
+          const idx = url.indexOf(marker)
+          return idx !== -1 ? decodeURIComponent(url.slice(idx + marker.length)) : null
+        })
+        .filter((p): p is string => p !== null)
+      if (paths.length > 0) {
+        await supabase.storage.from('product-images').remove(paths)
+      }
     }
 
     router.push(`/market?tab=${tabKey}`)

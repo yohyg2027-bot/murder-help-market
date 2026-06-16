@@ -1,13 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import SalesRankingSidebar from './SalesRankingSidebar'
-
-const CONDITION_LABEL: Record<string, string> = {
-  new: '새상품',
-  like_new: '거의 새것',
-  used: '사용감 있음',
-  worn: '많이 사용함',
-}
+import PostCard, { type Post, type TabType } from './PostCard'
 
 const SELL_BUY_CATEGORIES = [
   '전체', '전자기기', '의류/잡화', '가구/인테리어', '도서/음반',
@@ -18,8 +12,6 @@ const SELL_BUY_CATEGORIES = [
 const COMMUNITY_CATEGORIES = [
   '전체', '자유게시판', '정보공유', '거래후기', '질문&답변', '모임/이벤트', '공동구매', '기타',
 ]
-
-type TabType = 'sell' | 'buy' | 'community'
 
 const TAB_CONFIG: Record<TabType, {
   label: string
@@ -57,102 +49,6 @@ const TAB_CONFIG: Record<TabType, {
   },
 }
 
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return '방금 전'
-  if (mins < 60) return `${mins}분 전`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}시간 전`
-  return `${Math.floor(hours / 24)}일 전`
-}
-
-type Post = {
-  id: string
-  title: string
-  price: number | null
-  category: string
-  condition: string | null
-  location: string | null
-  created_at: string
-  post_type: string
-  seller: { nickname: string } | null
-}
-
-function PostCard({ post, tab }: { post: Post; tab: TabType }) {
-  const cfg = TAB_CONFIG[tab]
-
-  return (
-    <Link href={`/market/post/${post.id}`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
-      <div
-        style={{
-          background: '#111111',
-          border: '1px solid #2a2a2a',
-          borderTop: `2px solid ${cfg.accent}55`,
-          padding: '1.25rem',
-          cursor: 'pointer',
-          height: '100%',
-          boxSizing: 'border-box',
-        }}
-      >
-        {/* 카테고리 + 상태 */}
-        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
-          <span style={{
-            fontSize: '0.65rem', letterSpacing: '0.1em',
-            padding: '0.15rem 0.5rem',
-            background: `${cfg.accent}22`,
-            color: cfg.accent,
-            border: `1px solid ${cfg.accent}44`,
-            fontFamily: 'monospace',
-          }}>
-            {post.category}
-          </span>
-          {post.condition && (
-            <span style={{
-              fontSize: '0.65rem', letterSpacing: '0.1em',
-              padding: '0.15rem 0.5rem',
-              background: '#1a1a1a', color: '#555550',
-              border: '1px solid #2a2a2a', fontFamily: 'monospace',
-            }}>
-              {CONDITION_LABEL[post.condition] ?? post.condition}
-            </span>
-          )}
-        </div>
-
-        {/* 제목 */}
-        <h3 style={{
-          color: '#e8e0d0', fontSize: '0.95rem', fontWeight: 600,
-          marginBottom: '0.5rem',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {post.title}
-        </h3>
-
-        {/* 가격 */}
-        {post.price !== null && (
-          <p style={{
-            color: tab === 'buy' ? '#1e90ff' : '#b8860b',
-            fontSize: '1.05rem', fontWeight: 700,
-            marginBottom: '0.75rem', letterSpacing: '0.02em',
-          }}>
-            {cfg.pricePrefix ?? ''}{post.price.toLocaleString('ko-KR')}원
-          </p>
-        )}
-
-        {/* 하단 */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          fontSize: '0.7rem', color: '#3a3a3a', fontFamily: 'monospace',
-          marginTop: post.price === null ? '0.75rem' : 0,
-        }}>
-          <span>{post.location ?? (tab === 'community' ? '' : '지역 미정')}</span>
-          <span>{post.seller?.nickname ?? '익명'} · {timeAgo(post.created_at)}</span>
-        </div>
-      </div>
-    </Link>
-  )
-}
-
 export default async function MarketPage({
   searchParams,
 }: {
@@ -172,7 +68,7 @@ export default async function MarketPage({
 
   const baseQuery = supabase
     .from('products')
-    .select('id, title, price, category, condition, location, created_at, post_type, seller:profiles!seller_id(nickname)')
+    .select('id, title, price, category, condition, location, created_at, post_type, images, seller:profiles!seller_id(nickname)')
     .eq('status', 'active')
     .eq('post_type', tab)
     .order('created_at', { ascending: false })
@@ -299,7 +195,11 @@ export default async function MarketPage({
               gap: '0.75rem',
             }}>
               {posts.map((p) => (
-                <PostCard key={p.id} post={p} tab={tab} />
+                <PostCard
+                  key={p.id}
+                  post={p}
+                  cfg={{ accent: cfg.accent, pricePrefix: cfg.pricePrefix }}
+                />
               ))}
             </div>
           )}

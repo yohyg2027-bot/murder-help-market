@@ -35,6 +35,7 @@ interface InitialData {
   location: string | null
   description: string | null
   post_type: string
+  images: string[]
 }
 
 interface Props {
@@ -62,6 +63,13 @@ const labelStyle = {
   marginBottom: '0.5rem',
 }
 
+function extractStoragePath(url: string): string | null {
+  const marker = '/storage/v1/object/public/product-images/'
+  const idx = url.indexOf(marker)
+  if (idx === -1) return null
+  return decodeURIComponent(url.slice(idx + marker.length))
+}
+
 export default function EditForm({ postId, initialData }: Props) {
   const router = useRouter()
   const supabase = createClient()
@@ -79,6 +87,13 @@ export default function EditForm({ postId, initialData }: Props) {
     location: initialData.location ?? '',
     description: initialData.description ?? '',
   })
+
+  // 이미지 관련 상태
+  const [existingImages, setExistingImages] = useState<string[]>(initialData.images)
+  const [removedImages, setRemovedImages] = useState<string[]>([])
+  const [newImageFiles, setNewImageFiles] = useState<File[]>([])
+  const [newImagePreviews, setNewImagePreviews] = useState<string[]>([])
+
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -87,6 +102,30 @@ export default function EditForm({ postId, initialData }: Props) {
   ) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
   }
+
+  const handleRemoveExisting = (url: string) => {
+    setExistingImages(prev => prev.filter(u => u !== url))
+    setRemovedImages(prev => [...prev, url])
+  }
+
+  const handleNewImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const remaining = 5 - existingImages.length - newImageFiles.length
+    if (remaining <= 0) return
+    const files = Array.from(e.target.files || []).slice(0, remaining)
+    if (files.length === 0) return
+    const previews = files.map(f => URL.createObjectURL(f))
+    setNewImageFiles(prev => [...prev, ...files])
+    setNewImagePreviews(prev => [...prev, ...previews])
+    e.target.value = ''
+  }
+
+  const handleRemoveNew = (index: number) => {
+    URL.revokeObjectURL(newImagePreviews[index])
+    setNewImageFiles(prev => prev.filter((_, i) => i !== index))
+    setNewImagePreviews(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const totalImages = existingImages.length + newImageFiles.length
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,10 +140,36 @@ export default function EditForm({ postId, initialData }: Props) {
 
     setLoading(true)
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { router.push('/login'); return }
+
+    // 삭제된 이미지를 Storage에서 제거
+    for (const url of removedImages) {
+      const path = extractStoragePath(url)
+      if (path) {
+        await supabase.storage.from('product-images').remove([path])
+      }
+    }
+
+    // 새 이미지 업로드
+    const newUrls: string[] = []
+    for (const file of newImageFiles) {
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(path, file, { cacheControl: '3600', upsert: false })
+      if (!uploadError) {
+        const { data } = supabase.storage.from('product-images').getPublicUrl(path)
+        newUrls.push(data.publicUrl)
+      }
+    }
+
     const updatePayload: Record<string, unknown> = {
       title: form.title.trim(),
       category: form.category,
       description: form.description.trim() || null,
+      images: [...existingImages, ...newUrls],
       updated_at: new Date().toISOString(),
     }
 
@@ -155,6 +220,104 @@ export default function EditForm({ postId, initialData }: Props) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* 이미지 관리 */}
+          <div>
+            <label style={labelStyle}>
+              상품 사진 <span style={{ color: '#3a3a3a', fontSize: '0.65rem', fontFamily: 'monospace' }}>({totalImages}/5)</span>
+            </label>
+
+            {/* 기존 이미지 */}
+            {(existingImages.length > 0 || newImagePreviews.length > 0) && (
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                {existingImages.map((url, i) => (
+                  <div key={url} style={{ position: 'relative', width: '90px', height: '90px', flexShrink: 0 }}>
+                    <img
+                      src={url}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', border: '1px solid #2a2a2a' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveExisting(url)}
+                      style={{
+                        position: 'absolute', top: '3px', right: '3px',
+                        width: '20px', height: '20px',
+                        background: 'rgba(0,0,0,0.75)', border: '1px solid #3a3a3a',
+                        color: '#e8e0d0', cursor: 'pointer', fontSize: '0.75rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      ×
+                    </button>
+                    {i === 0 && newImageFiles.length === 0 && (
+                      <span style={{
+                        position: 'absolute', bottom: '3px', left: '3px',
+                        background: `rgba(0,0,0,0.75)`, color: cfg.accent,
+                        fontSize: '0.55rem', padding: '1px 4px', fontFamily: 'monospace',
+                        border: `1px solid ${cfg.accent}44`,
+                      }}>
+                        대표
+                      </span>
+                    )}
+                  </div>
+                ))}
+
+                {/* 새로 추가된 이미지 미리보기 */}
+                {newImagePreviews.map((src, i) => (
+                  <div key={`new-${i}`} style={{ position: 'relative', width: '90px', height: '90px', flexShrink: 0 }}>
+                    <img
+                      src={src}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', border: `1px solid ${cfg.accent}44` }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveNew(i)}
+                      style={{
+                        position: 'absolute', top: '3px', right: '3px',
+                        width: '20px', height: '20px',
+                        background: 'rgba(0,0,0,0.75)', border: '1px solid #3a3a3a',
+                        color: '#e8e0d0', cursor: 'pointer', fontSize: '0.75rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      ×
+                    </button>
+                    <span style={{
+                      position: 'absolute', bottom: '3px', left: '3px',
+                      background: 'rgba(0,0,0,0.75)', color: '#888880',
+                      fontSize: '0.55rem', padding: '1px 4px', fontFamily: 'monospace',
+                    }}>
+                      NEW
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {totalImages < 5 && (
+              <label style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: '0.5rem',
+                border: '1px dashed #2a2a2a',
+                padding: '0.85rem',
+                cursor: 'pointer',
+                color: '#555550',
+                fontSize: '0.82rem',
+              }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleNewImageChange}
+                  style={{ display: 'none' }}
+                />
+                <span style={{ fontSize: '1rem' }}>＋</span>
+                사진 추가 (최대 5장)
+              </label>
+            )}
+          </div>
+
           {/* 제목 */}
           <div>
             <label style={labelStyle}>제목 <span style={{ color: cfg.accent }}>*</span></label>

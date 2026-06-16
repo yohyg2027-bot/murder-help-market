@@ -49,6 +49,8 @@ export default function SellPage() {
     location: '',
     description: '',
   })
+  const [imageFiles, setImageFiles] = useState<File[]>([])
+  const [imagePreviews, setImagePreviews] = useState<string[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -56,6 +58,21 @@ export default function SellPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).slice(0, 5 - imageFiles.length)
+    if (files.length === 0) return
+    const newPreviews = files.map(f => URL.createObjectURL(f))
+    setImageFiles(prev => [...prev, ...files].slice(0, 5))
+    setImagePreviews(prev => [...prev, ...newPreviews].slice(0, 5))
+    e.target.value = ''
+  }
+
+  const removeImage = (index: number) => {
+    URL.revokeObjectURL(imagePreviews[index])
+    setImageFiles(prev => prev.filter((_, i) => i !== index))
+    setImagePreviews(prev => prev.filter((_, i) => i !== index))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,6 +89,20 @@ export default function SellPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
+    // 이미지 먼저 업로드
+    const imageUrls: string[] = []
+    for (const file of imageFiles) {
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(path, file, { cacheControl: '3600', upsert: false })
+      if (!uploadError) {
+        const { data } = supabase.storage.from('product-images').getPublicUrl(path)
+        imageUrls.push(data.publicUrl)
+      }
+    }
+
     const { error: insertError } = await supabase.from('products').insert({
       seller_id: user.id,
       post_type: 'sell',
@@ -81,6 +112,7 @@ export default function SellPage() {
       condition: form.condition,
       location: form.location.trim() || null,
       description: form.description.trim() || null,
+      images: imageUrls,
     })
 
     if (insertError) {
@@ -122,6 +154,73 @@ export default function SellPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* 상품 사진 */}
+          <div>
+            <label style={labelStyle}>
+              상품 사진 <span style={{ color: '#3a3a3a', fontSize: '0.65rem', fontFamily: 'monospace' }}>({imageFiles.length}/5)</span>
+            </label>
+
+            {imagePreviews.length > 0 && (
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                {imagePreviews.map((src, i) => (
+                  <div key={i} style={{ position: 'relative', width: '90px', height: '90px', flexShrink: 0 }}>
+                    <img
+                      src={src}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', border: '1px solid #2a2a2a' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      style={{
+                        position: 'absolute', top: '3px', right: '3px',
+                        width: '20px', height: '20px',
+                        background: 'rgba(0,0,0,0.75)', border: '1px solid #3a3a3a',
+                        color: '#e8e0d0', cursor: 'pointer', fontSize: '0.75rem',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        lineHeight: 1,
+                      }}
+                    >
+                      ×
+                    </button>
+                    {i === 0 && (
+                      <span style={{
+                        position: 'absolute', bottom: '3px', left: '3px',
+                        background: 'rgba(139,0,0,0.85)', color: '#e8e0d0',
+                        fontSize: '0.55rem', padding: '1px 4px', fontFamily: 'monospace',
+                      }}>
+                        대표
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {imageFiles.length < 5 && (
+              <label style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: '0.5rem',
+                border: '1px dashed #2a2a2a',
+                padding: '0.85rem',
+                cursor: 'pointer',
+                color: '#555550',
+                fontSize: '0.82rem',
+                transition: 'border-color 0.2s',
+              }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageChange}
+                  style={{ display: 'none' }}
+                />
+                <span style={{ fontSize: '1rem' }}>＋</span>
+                사진 추가 (최대 5장)
+              </label>
+            )}
+          </div>
+
           <div>
             <label style={labelStyle}>제목 <span style={{ color: '#dc143c' }}>*</span></label>
             <input

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import CommentSection from './CommentSection'
 import PostActions from './PostActions'
+import ImageGallery from './ImageGallery'
 
 const CONDITION_LABEL: Record<string, string> = {
   new: '새상품',
@@ -46,7 +47,7 @@ export default async function PostDetailPage({
     .from('products')
     .select(`
       id, title, description, price, category, condition, location,
-      created_at, post_type, status,
+      created_at, post_type, status, images,
       seller:profiles!seller_id(id, nickname)
     `)
     .eq('id', id)
@@ -58,7 +59,7 @@ export default async function PostDetailPage({
     id: string; title: string; description: string | null
     price: number | null; category: string; condition: string | null
     location: string | null; created_at: string; post_type: string
-    status: string; seller: Seller
+    status: string; images: string[] | null; seller: Seller
   }
 
   if (post.status !== 'active') notFound()
@@ -102,6 +103,11 @@ export default async function PostDetailPage({
         padding: '2rem',
         marginBottom: '1.25rem',
       }}>
+        {/* 이미지 갤러리 */}
+        {post.images && post.images.length > 0 && (
+          <ImageGallery images={post.images} />
+        )}
+
         {/* 배지 */}
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <span style={{
