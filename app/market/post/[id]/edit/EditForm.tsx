@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import RegionSelect from '@/components/RegionSelect'
 
 const SELL_BUY_CATEGORIES = [
   '전자기기', '의류/잡화', '가구/인테리어', '도서/음반',
@@ -368,8 +369,11 @@ export default function EditForm({ postId, initialData }: Props) {
               </div>
               <div>
                 <label style={labelStyle}>거래 지역</label>
-                <input type="text" name="location" value={form.location} onChange={handleChange}
-                  placeholder="예) 서울 강남구" style={inputStyle} onFocus={focusStyle} onBlur={blurStyle} />
+                <RegionSelect
+                  value={form.location}
+                  onChange={(loc) => setForm((prev) => ({ ...prev, location: loc }))}
+                  accent={cfg.accent}
+                />
               </div>
             </div>
           )}

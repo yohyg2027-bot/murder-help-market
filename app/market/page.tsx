@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import SalesRankingSidebar from './SalesRankingSidebar'
 import PostCard, { type Post, type TabType } from './PostCard'
+import { SIDO_LIST, SIGUNGU_MAP, PRICE_RANGES, getPriceRange } from '@/lib/regions'
 
 const SELL_BUY_CATEGORIES = [
   '전체', '전자기기', '의류/잡화', '가구/인테리어', '도서/음반',
@@ -52,11 +53,12 @@ const TAB_CONFIG: Record<TabType, {
 export default async function MarketPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; cat?: string }>
+  searchParams: Promise<{ tab?: string; cat?: string; sido?: string; gu?: string; price?: string }>
 }) {
-  const { tab: rawTab = 'sell', cat: categoryFilter } = await searchParams
+  const { tab: rawTab = 'sell', cat: categoryFilter, sido = '', gu = '', price: priceKey = '' } = await searchParams
   const tab = (rawTab in TAB_CONFIG ? rawTab : 'sell') as TabType
   const cfg = TAB_CONFIG[tab]
+  const showLocationPrice = tab !== 'community'
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -66,22 +68,84 @@ export default async function MarketPage({
     .eq('id', user!.id)
     .single()
 
-  const baseQuery = supabase
+  // 필터를 하나씩 쌓아가며 조건을 추가합니다
+  let query = supabase
     .from('products')
-    .select('id, title, price, category, condition, location, created_at, post_type, images, seller:profiles!seller_id(nickname)')
+    .select('id, title, price, category, condition, location, created_at, post_type, images, seller:profiles!seller_id(nickname), likes(count)')
     .eq('status', 'active')
     .eq('post_type', tab)
-    .order('created_at', { ascending: false })
-    .limit(24)
 
-  const { data: postsData } = await (
-    categoryFilter && categoryFilter !== '전체'
-      ? baseQuery.eq('category', categoryFilter)
-      : baseQuery
-  )
+  if (categoryFilter && categoryFilter !== '전체') {
+    query = query.eq('category', categoryFilter)
+  }
 
-  const posts = (postsData ?? []) as unknown as Post[]
+  // 지역 필터: 구/군까지 고르면 정확히, 시/도만 고르면 해당 시/도 전체
+  if (showLocationPrice && sido) {
+    query = gu
+      ? query.eq('location', `${sido} ${gu}`)
+      : query.like('location', `${sido}%`)
+  }
+
+  // 가격대 필터
+  const range = showLocationPrice ? getPriceRange(priceKey) : null
+  if (range) {
+    query = query.gte('price', range.min)
+    if (range.max !== null) query = query.lte('price', range.max)
+  }
+
+  query = query.order('created_at', { ascending: false }).limit(48)
+
+  const { data: postsData } = await query
+
+  const posts = (postsData ?? []).map((p) => {
+    const likesField = (p as { likes?: { count: number }[] }).likes
+    const likeCount = Array.isArray(likesField) ? (likesField[0]?.count ?? 0) : 0
+    return { ...p, likeCount }
+  }) as unknown as Post[]
+
   const activeCat = categoryFilter ?? '전체'
+  const sigunguList = sido ? (SIGUNGU_MAP[sido] ?? []) : []
+
+  // 현재 필터 상태를 유지하면서 일부만 바꾼 링크를 만듭니다
+  const makeHref = (overrides: Record<string, string | undefined>) => {
+    const params: Record<string, string | undefined> = {
+      tab,
+      cat: activeCat !== '전체' ? activeCat : undefined,
+      sido: sido || undefined,
+      gu: gu || undefined,
+      price: priceKey || undefined,
+      ...overrides,
+    }
+    const qs = Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== '' && v !== '전체')
+      .map(([k, v]) => `${k}=${encodeURIComponent(v as string)}`)
+      .join('&')
+    return `/market?${qs}`
+  }
+
+  // 필터 칩 공통 스타일
+  const chip = (active: boolean) => ({
+    padding: '0.25rem 0.65rem',
+    fontSize: '0.7rem',
+    fontFamily: 'monospace',
+    letterSpacing: '0.05em',
+    textDecoration: 'none',
+    background: active ? `${cfg.accent}22` : 'transparent',
+    color: active ? cfg.accent : '#3a3a3a',
+    border: `1px solid ${active ? cfg.accent + '66' : '#2a2a2a'}`,
+    transition: 'all 0.15s',
+    whiteSpace: 'nowrap' as const,
+  })
+
+  const filterLabelStyle = {
+    fontSize: '0.62rem',
+    color: '#555550',
+    fontFamily: 'monospace',
+    letterSpacing: '0.1em',
+    flexShrink: 0,
+    width: '52px',
+    paddingTop: '0.3rem',
+  }
 
   return (
     <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '2rem 1rem' }}>
@@ -133,33 +197,18 @@ export default async function MarketPage({
           {/* 카테고리 필터 + 글쓰기 버튼 */}
           <div style={{
             display: 'flex', justifyContent: 'space-between',
-            alignItems: 'flex-start', marginBottom: '1.5rem', gap: '1rem',
+            alignItems: 'flex-start', marginBottom: '1rem', gap: '1rem',
           }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', flex: 1 }}>
-              {cfg.categories.map((cat) => {
-                const isActiveCat = cat === activeCat
-                return (
-                  <Link
-                    key={cat}
-                    href={
-                      cat === '전체'
-                        ? `/market?tab=${tab}`
-                        : `/market?tab=${tab}&cat=${encodeURIComponent(cat)}`
-                    }
-                    style={{
-                      padding: '0.25rem 0.65rem',
-                      fontSize: '0.7rem', fontFamily: 'monospace',
-                      letterSpacing: '0.05em', textDecoration: 'none',
-                      background: isActiveCat ? `${cfg.accent}22` : 'transparent',
-                      color: isActiveCat ? cfg.accent : '#3a3a3a',
-                      border: `1px solid ${isActiveCat ? cfg.accent + '66' : '#2a2a2a'}`,
-                      transition: 'all 0.15s', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {cat}
-                  </Link>
-                )
-              })}
+              {cfg.categories.map((cat) => (
+                <Link
+                  key={cat}
+                  href={makeHref({ cat: cat === '전체' ? undefined : cat })}
+                  style={chip(cat === activeCat)}
+                >
+                  {cat}
+                </Link>
+              ))}
             </div>
 
             <Link
@@ -176,6 +225,56 @@ export default async function MarketPage({
             </Link>
           </div>
 
+          {/* 지역 + 가격대 필터 (판매글/수요글만) */}
+          {showLocationPrice && (
+            <div style={{
+              border: '1px solid #1e1e1e', background: '#0d0d0d',
+              padding: '0.85rem 1rem', marginBottom: '1.5rem',
+              display: 'flex', flexDirection: 'column', gap: '0.6rem',
+            }}>
+              {/* 시/도 */}
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <span style={filterLabelStyle}>지역</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', flex: 1 }}>
+                  <Link href={makeHref({ sido: undefined, gu: undefined })} style={chip(!sido)}>전체</Link>
+                  {SIDO_LIST.map((s) => (
+                    <Link key={s} href={makeHref({ sido: s, gu: undefined })} style={chip(s === sido)}>
+                      {s}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {/* 구/군 (시/도 선택 시) */}
+              {sido && sigunguList.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                  <span style={filterLabelStyle}>{sido}</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', flex: 1 }}>
+                    <Link href={makeHref({ gu: undefined })} style={chip(!gu)}>전체</Link>
+                    {sigunguList.map((g) => (
+                      <Link key={g} href={makeHref({ gu: g })} style={chip(g === gu)}>
+                        {g}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 가격대 */}
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <span style={filterLabelStyle}>가격대</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', flex: 1 }}>
+                  <Link href={makeHref({ price: undefined })} style={chip(!priceKey)}>전체</Link>
+                  {PRICE_RANGES.map((r) => (
+                    <Link key={r.key} href={makeHref({ price: r.key })} style={chip(r.key === priceKey)}>
+                      {r.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 글 목록 */}
           {posts.length === 0 ? (
             <div style={{
@@ -183,7 +282,11 @@ export default async function MarketPage({
               border: '1px solid #2a2a2a', color: '#3a3a3a',
               fontFamily: 'monospace', fontSize: '0.82rem', letterSpacing: '0.1em',
             }}>
-              <p style={{ marginBottom: '1rem' }}>{cfg.emptyMsg}</p>
+              <p style={{ marginBottom: '1rem' }}>
+                {sido || priceKey || (activeCat !== '전체')
+                  ? '조건에 맞는 게시글이 없습니다'
+                  : cfg.emptyMsg}
+              </p>
               <Link href={cfg.writeHref} style={{ color: cfg.accent, textDecoration: 'none', fontSize: '0.78rem' }}>
                 {cfg.writeLabel}
               </Link>

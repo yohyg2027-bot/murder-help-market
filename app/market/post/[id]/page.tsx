@@ -4,6 +4,7 @@ import Link from 'next/link'
 import CommentSection from './CommentSection'
 import PostActions from './PostActions'
 import ImageGallery from './ImageGallery'
+import LikeButton from './LikeButton'
 
 const CONDITION_LABEL: Record<string, string> = {
   new: '새상품',
@@ -32,6 +33,8 @@ type CommentType = {
   content: string
   offer_price: number | null
   created_at: string
+  is_secret: boolean
+  locked: boolean
   author: { id: string; nickname: string } | null
 }
 
@@ -64,15 +67,45 @@ export default async function PostDetailPage({
 
   if (post.status !== 'active') notFound()
 
+  const { data: { user } } = await supabase.auth.getUser()
+
   const { data: commentsRaw } = await supabase
     .from('comments')
-    .select('id, content, offer_price, created_at, author:profiles!author_id(id, nickname)')
+    .select('id, content, offer_price, created_at, is_secret, author:profiles!author_id(id, nickname)')
     .eq('post_id', id)
     .order('created_at', { ascending: true })
 
-  const comments = (commentsRaw ?? []) as unknown as CommentType[]
+  const isPostOwner = !!user && user.id === post.seller?.id
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // 비밀댓글은 작성자 본인과 글쓴이만 볼 수 있도록, 그 외에는 내용을 가립니다
+  const comments = ((commentsRaw ?? []) as unknown as Array<Omit<CommentType, 'locked'>>).map((c) => {
+    const isOwnComment = !!user && c.author?.id === user.id
+    const locked = c.is_secret && !isOwnComment && !isPostOwner
+    return {
+      ...c,
+      content: locked ? '' : c.content,
+      offer_price: locked ? null : c.offer_price,
+      locked,
+    }
+  }) as CommentType[]
+
+  // 좋아요 수 + 내가 눌렀는지 여부
+  const { count: likeCountRaw } = await supabase
+    .from('likes')
+    .select('*', { count: 'exact', head: true })
+    .eq('post_id', id)
+  const likeCount = likeCountRaw ?? 0
+
+  let initialLiked = false
+  if (user) {
+    const { data: myLike } = await supabase
+      .from('likes')
+      .select('id')
+      .eq('post_id', id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    initialLiked = !!myLike
+  }
 
   const typeConfig = POST_TYPE_CONFIG[post.post_type] ?? { label: post.post_type, color: '#888880', tabKey: 'sell' }
   const canNegotiate = post.post_type === 'sell' || post.post_type === 'buy'
@@ -207,6 +240,17 @@ export default async function PostDetailPage({
             </div>
           </>
         )}
+
+        {/* 좋아요 */}
+        <div style={{ height: '1px', background: '#1a1a1a', margin: '1.5rem 0' }} />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <LikeButton
+            postId={id}
+            currentUserId={user?.id}
+            initialCount={likeCount}
+            initialLiked={initialLiked}
+          />
+        </div>
       </article>
 
       {/* 댓글 섹션 */}

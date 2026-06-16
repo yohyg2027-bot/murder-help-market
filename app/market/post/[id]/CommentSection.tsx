@@ -8,6 +8,8 @@ type Comment = {
   content: string
   offer_price: number | null
   created_at: string
+  is_secret: boolean
+  locked: boolean
   author: { id: string; nickname: string } | null
 }
 
@@ -33,6 +35,7 @@ export default function CommentSection({ postId, currentUserId, canNegotiate, in
   const [content, setContent] = useState('')
   const [offerPrice, setOfferPrice] = useState('')
   const [showPriceField, setShowPriceField] = useState(false)
+  const [isSecret, setIsSecret] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -50,10 +53,12 @@ export default function CommentSection({ postId, currentUserId, canNegotiate, in
       author_id: string
       content: string
       offer_price?: number
+      is_secret: boolean
     } = {
       post_id: postId,
       author_id: currentUserId,
       content: content.trim(),
+      is_secret: isSecret,
     }
 
     if (showPriceField && offerPrice && !isNaN(Number(offerPrice)) && Number(offerPrice) >= 0) {
@@ -63,7 +68,7 @@ export default function CommentSection({ postId, currentUserId, canNegotiate, in
     const { data, error: insertError } = await supabase
       .from('comments')
       .insert(payload)
-      .select('id, content, offer_price, created_at, author:profiles!author_id(id, nickname)')
+      .select('id, content, offer_price, created_at, is_secret, author:profiles!author_id(id, nickname)')
       .single()
 
     if (insertError || !data) {
@@ -72,10 +77,12 @@ export default function CommentSection({ postId, currentUserId, canNegotiate, in
       return
     }
 
-    setComments((prev) => [...prev, data as unknown as Comment])
+    // 내가 쓴 댓글이므로 잠금 없이 바로 보입니다
+    setComments((prev) => [...prev, { ...(data as unknown as Comment), locked: false }])
     setContent('')
     setOfferPrice('')
     setShowPriceField(false)
+    setIsSecret(false)
     setLoading(false)
   }
 
@@ -114,7 +121,7 @@ export default function CommentSection({ postId, currentUserId, canNegotiate, in
             const isMyComment = c.author?.id === currentUserId
             return (
               <div key={c.id} style={{
-                background: isMyComment ? 'rgba(139,0,0,0.06)' : '#111111',
+                background: c.locked ? '#0d0d0d' : (isMyComment ? 'rgba(139,0,0,0.06)' : '#111111'),
                 border: `1px solid ${isMyComment ? '#5c000033' : '#1a1a1a'}`,
                 padding: '0.875rem 1rem',
               }}>
@@ -127,26 +134,40 @@ export default function CommentSection({ postId, currentUserId, canNegotiate, in
                     {isMyComment && (
                       <span style={{ color: '#5c0000', marginLeft: '0.4rem', fontSize: '0.65rem' }}>(나)</span>
                     )}
+                    {c.is_secret && (
+                      <span style={{ color: '#6a6a3a', marginLeft: '0.4rem', fontSize: '0.65rem' }}>🔒 비밀</span>
+                    )}
                   </span>
                   <span style={{ color: '#2a2a2a', fontSize: '0.68rem', fontFamily: 'monospace' }}>
                     {timeAgo(c.created_at)}
                   </span>
                 </div>
-                {c.offer_price !== null && c.offer_price !== undefined && (
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                    background: 'rgba(184,134,11,0.1)',
-                    border: '1px solid rgba(184,134,11,0.25)',
-                    padding: '0.2rem 0.6rem', fontSize: '0.73rem',
-                    color: '#b8860b', marginBottom: '0.4rem',
-                    fontFamily: 'monospace',
+                {c.locked ? (
+                  <p style={{
+                    color: '#555550', fontSize: '0.83rem', lineHeight: 1.65, margin: 0,
+                    fontStyle: 'italic', fontFamily: 'monospace',
                   }}>
-                    💰 {c.offer_price.toLocaleString('ko-KR')}원 제안
-                  </div>
+                    🔒 비밀 댓글입니다. 작성자와 글쓴이만 볼 수 있습니다.
+                  </p>
+                ) : (
+                  <>
+                    {c.offer_price !== null && c.offer_price !== undefined && (
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                        background: 'rgba(184,134,11,0.1)',
+                        border: '1px solid rgba(184,134,11,0.25)',
+                        padding: '0.2rem 0.6rem', fontSize: '0.73rem',
+                        color: '#b8860b', marginBottom: '0.4rem',
+                        fontFamily: 'monospace',
+                      }}>
+                        💰 {c.offer_price.toLocaleString('ko-KR')}원 제안
+                      </div>
+                    )}
+                    <p style={{ color: '#c8c0b0', fontSize: '0.88rem', lineHeight: 1.65, margin: 0 }}>
+                      {c.content}
+                    </p>
+                  </>
                 )}
-                <p style={{ color: '#c8c0b0', fontSize: '0.88rem', lineHeight: 1.65, margin: 0 }}>
-                  {c.content}
-                </p>
               </div>
             )
           })}
@@ -194,6 +215,23 @@ export default function CommentSection({ postId, currentUserId, canNegotiate, in
               )}
             </div>
           )}
+
+          {/* 비밀댓글 선택 */}
+          <label style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+            marginBottom: '0.6rem', cursor: 'pointer',
+            color: isSecret ? '#b8a84a' : '#555550',
+            fontSize: '0.74rem', fontFamily: 'monospace', letterSpacing: '0.05em',
+            userSelect: 'none',
+          }}>
+            <input
+              type="checkbox"
+              checked={isSecret}
+              onChange={(e) => setIsSecret(e.target.checked)}
+              style={{ accentColor: '#8b8b3a', cursor: 'pointer' }}
+            />
+            🔒 비밀댓글 (작성자와 글쓴이만 볼 수 있어요)
+          </label>
 
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
             <textarea

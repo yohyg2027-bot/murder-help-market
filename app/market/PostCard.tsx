@@ -28,6 +28,7 @@ export type Post = {
   post_type: string
   images: string[] | null
   seller: { nickname: string } | null
+  likeCount?: number
 }
 
 function timeAgo(dateStr: string) {
@@ -199,10 +200,17 @@ export default function PostCard({ post, cfg }: { post: Post; cfg: TabConfig }) 
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               fontSize: '0.7rem', color: '#3a3a3a', fontFamily: 'monospace',
-              marginTop: 'auto',
+              marginTop: 'auto', gap: '0.5rem',
             }}>
-              <span>{post.location ?? (post.post_type === 'community' ? '' : '지역 미정')}</span>
-              <span>{post.seller?.nickname ?? '익명'} · {timeAgo(post.created_at)}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {post.location ?? (post.post_type === 'community' ? '' : '지역 미정')}
+                </span>
+                {!!post.likeCount && post.likeCount > 0 && (
+                  <span style={{ color: '#8b3a3a', flexShrink: 0 }}>♥ {post.likeCount}</span>
+                )}
+              </span>
+              <span style={{ flexShrink: 0 }}>{post.seller?.nickname ?? '익명'} · {timeAgo(post.created_at)}</span>
             </div>
           </div>
         </Link>
