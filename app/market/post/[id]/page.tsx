@@ -5,6 +5,8 @@ import CommentSection from './CommentSection'
 import PostActions from './PostActions'
 import ImageGallery from './ImageGallery'
 import LikeButton from './LikeButton'
+import ChatButton from './ChatButton'
+import { getCategoryVisual } from '@/lib/categoryVisual'
 
 const CONDITION_LABEL: Record<string, string> = {
   new: '새상품',
@@ -125,7 +127,18 @@ export default async function PostDetailPage({
         >
           ← 목록으로
         </Link>
-        {isAuthor && <PostActions postId={id} tabKey={typeConfig.tabKey} />}
+        {isAuthor ? (
+          <PostActions postId={id} tabKey={typeConfig.tabKey} />
+        ) : (
+          post.seller && (
+            <ChatButton
+              postId={id}
+              sellerId={post.seller.id}
+              currentUserId={user?.id}
+              accent={typeConfig.color}
+            />
+          )
+        )}
       </div>
 
       {/* 게시글 본문 */}
@@ -136,9 +149,27 @@ export default async function PostDetailPage({
         padding: '2rem',
         marginBottom: '1.25rem',
       }}>
-        {/* 이미지 갤러리 */}
-        {post.images && post.images.length > 0 && (
+        {/* 이미지 갤러리 (없으면 카테고리 썸네일) */}
+        {post.images && post.images.length > 0 ? (
           <ImageGallery images={post.images} />
+        ) : (
+          (() => {
+            const v = getCategoryVisual(post.category)
+            return (
+              <div style={{
+                width: '100%', height: '200px', marginBottom: '1.5rem',
+                background: `radial-gradient(ellipse at center, ${v.color}26 0%, #0d0d0d 75%)`,
+                border: `1px solid ${v.color}33`,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+              }}>
+                <span style={{ fontSize: '4rem', lineHeight: 1 }}>{v.emoji}</span>
+                <span style={{ fontSize: '0.7rem', color: `${v.color}cc`, fontFamily: 'monospace', letterSpacing: '0.12em' }}>
+                  {post.category}
+                </span>
+              </div>
+            )
+          })()
         )}
 
         {/* 배지 */}

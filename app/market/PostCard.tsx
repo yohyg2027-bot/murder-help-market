@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { getCategoryVisual } from '@/lib/categoryVisual'
 
 const CONDITION_LABEL: Record<string, string> = {
   new: '새상품',
@@ -125,25 +126,27 @@ export default function PostCard({ post, cfg }: { post: Post; cfg: TabConfig }) 
             </div>
           </div>
         ) : (
-          /* 이미지 없는 카드 — 플레이스홀더 */
-          <div style={{
-            width: '100%', height: '150px', flexShrink: 0,
-            background: '#0d0d0d',
-            borderBottom: '1px solid #1e1e1e',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: '0.4rem',
-          }}>
-            <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="4" y="10" width="28" height="20" rx="1" stroke="#2e2e2e" strokeWidth="1.5"/>
-              <circle cx="18" cy="20" r="5.5" stroke="#2e2e2e" strokeWidth="1.5"/>
-              <path d="M13 10 L14.5 7 H21.5 L23 10" stroke="#2e2e2e" strokeWidth="1.5" strokeLinejoin="round"/>
-              <circle cx="27" cy="14" r="1.2" fill="#2e2e2e"/>
-            </svg>
-            <span style={{ fontSize: '0.6rem', color: '#2e2e2e', fontFamily: 'monospace', letterSpacing: '0.08em' }}>
-              NO IMAGE
-            </span>
-          </div>
+          /* 이미지 없는 카드 — 카테고리 썸네일 (저용량) */
+          (() => {
+            const v = getCategoryVisual(post.category)
+            return (
+              <div style={{
+                width: '100%', height: '150px', flexShrink: 0,
+                background: `radial-gradient(ellipse at center, ${v.color}26 0%, #0d0d0d 75%)`,
+                borderBottom: `1px solid ${v.color}33`,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                gap: '0.35rem',
+              }}>
+                <span style={{ fontSize: '2.8rem', lineHeight: 1, filter: 'saturate(0.9)' }}>
+                  {v.emoji}
+                </span>
+                <span style={{ fontSize: '0.6rem', color: `${v.color}cc`, fontFamily: 'monospace', letterSpacing: '0.1em' }}>
+                  {post.category}
+                </span>
+              </div>
+            )
+          })()
         )}
 
         {/* 카드 본문 — 클릭하면 상세 페이지 이동 */}

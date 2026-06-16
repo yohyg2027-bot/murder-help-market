@@ -100,6 +100,17 @@ export default function Header({ user, profile }: Props) {
 
         {/* 우측 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+          <Link
+            href="/market/chat"
+            style={{
+              color: '#888880', fontSize: '0.78rem', textDecoration: 'none',
+              fontFamily: 'monospace', letterSpacing: '0.05em',
+              border: '1px solid #2a2a2a', padding: '0.3rem 0.7rem',
+              transition: 'all 0.2s',
+            }}
+          >
+            💬 채팅
+          </Link>
           <span style={{ color: '#888880', fontSize: '0.78rem', fontFamily: 'monospace' }}>
             {profile?.nickname || user.email?.split('@')[0]}
           </span>
